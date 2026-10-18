@@ -1,0 +1,27 @@
+# Build output
+target/
+!.mvn/wrapper/maven-wrapper.jar
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# VS Code / Eclipse
+.vscode/
+.settings/
+.project
+.classpath
+.factorypath
+bin/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Local secrets and overrides
+.env
+application-local.yml
+*.log
