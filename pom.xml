@@ -52,6 +52,12 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- In-memory cache for reference data -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-cache</artifactId>
+        </dependency>
+
         <!-- Operations + API docs -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
