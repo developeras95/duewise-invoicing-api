@@ -5,6 +5,7 @@ import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.MessageSourceResolvable;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -15,10 +16,12 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.validation.FieldError;
 import org.springframework.validation.ObjectError;
+import org.springframework.validation.method.ParameterValidationResult;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 /**
@@ -87,6 +90,29 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         body.setTitle("Validation failed");
         body.setDetail("One or more fields are invalid.");
         body.setProperty("code", "VALIDATION_FAILED");
+        body.setProperty("errors", violations);
+        return handleExceptionInternal(ex, body, headers, status, request);
+    }
+
+    /**
+     * A constraint on a query or path parameter failed, e.g. {@code ?size=500} when the maximum is
+     * 100. Reported in the same shape as body validation errors.
+     */
+    @Override
+    protected ResponseEntity<Object> handleHandlerMethodValidationException(
+            HandlerMethodValidationException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+
+        List<FieldViolation> violations = new ArrayList<>();
+        for (ParameterValidationResult result : ex.getParameterValidationResults()) {
+            String parameter = result.getMethodParameter().getParameterName();
+            for (MessageSourceResolvable error : result.getResolvableErrors()) {
+                violations.add(new FieldViolation(parameter, error.getDefaultMessage()));
+            }
+        }
+
+        ProblemDetail body = problem(HttpStatus.BAD_REQUEST, "One or more request parameters are invalid.",
+                "VALIDATION_FAILED");
+        body.setTitle("Validation failed");
         body.setProperty("errors", violations);
         return handleExceptionInternal(ex, body, headers, status, request);
     }

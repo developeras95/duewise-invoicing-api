@@ -3,6 +3,7 @@ package com.duewise.currency;
 import java.util.List;
 import java.util.Locale;
 
+import com.duewise.common.error.BusinessRuleException;
 import com.duewise.common.error.ConflictException;
 import com.duewise.common.error.NotFoundException;
 import org.springframework.cache.annotation.CacheEvict;
@@ -67,6 +68,22 @@ public class CurrencyService {
             currency.setActive(request.active());
         }
         return CurrencyResponse.from(currency);
+    }
+
+    /**
+     * For other features (clients, invoices) that reference a currency in their request body.
+     * A bad currency there is a business-rule error (422), not a missing URL resource (404).
+     */
+    public Currency requireActive(String code) {
+        String normalized = code.trim().toUpperCase(Locale.ROOT);
+        Currency currency = repository.findById(normalized)
+                .orElseThrow(() -> new BusinessRuleException(
+                        "CURRENCY_NOT_FOUND", "Currency " + normalized + " does not exist."));
+        if (!currency.isActive()) {
+            throw new BusinessRuleException(
+                    "CURRENCY_INACTIVE", "Currency " + normalized + " is inactive and cannot be used.");
+        }
+        return currency;
     }
 
     private Currency find(String code) {
