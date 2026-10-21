@@ -4,6 +4,7 @@ import java.util.Locale;
 import java.util.Objects;
 
 import com.duewise.common.error.BadRequestException;
+import com.duewise.common.error.BusinessRuleException;
 import com.duewise.common.error.ConflictException;
 import com.duewise.common.error.NotFoundException;
 import com.duewise.common.web.PageResponse;
@@ -78,9 +79,13 @@ public class ClientService {
         return ClientResponse.from(repository.saveAndFlush(client));
     }
 
-    /** Used by invoices to load the client they belong to. */
+    /**
+     * Used by invoices to load the client named in their request body. A bad id there is a
+     * business-rule error (422), not a missing URL resource (404).
+     */
     public Client require(Long id) {
-        return find(id);
+        return repository.findById(id)
+                .orElseThrow(() -> new BusinessRuleException("CLIENT_NOT_FOUND", "Client " + id + " does not exist."));
     }
 
     private Client find(Long id) {
