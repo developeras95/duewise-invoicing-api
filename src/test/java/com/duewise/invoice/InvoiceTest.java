@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.duewise.client.Client;
+import com.duewise.common.error.BadRequestException;
 import com.duewise.common.error.BusinessRuleException;
 import com.duewise.common.error.ConflictException;
 import com.duewise.currency.Currency;
@@ -118,6 +119,68 @@ class InvoiceTest {
 
         invoice.voidInvoice("Cancelled", NOW);
         assertThat(invoice.isOverdue(afterDueDate)).as("void invoices are never overdue").isFalse();
+    }
+
+    @Test
+    void paymentsMoveTheInvoiceToPartiallyPaidThenPaid() {
+        Invoice invoice = draftWith(line("1", "1000", "18"));     // total 1180.00
+        invoice.send(() -> "INV-2026-00001", NOW);
+
+        invoice.recordPayment(new BigDecimal("500.00"), NOW);
+        assertThat(invoice.getStatus()).isEqualTo(InvoiceStatus.PARTIALLY_PAID);
+        assertThat(invoice.getBalanceDue()).isEqualByComparingTo("680.00");
+        assertThat(invoice.getPaidAt()).isNull();
+
+        invoice.recordPayment(new BigDecimal("680"), NOW);
+        assertThat(invoice.getStatus()).isEqualTo(InvoiceStatus.PAID);
+        assertThat(invoice.getBalanceDue()).isEqualByComparingTo("0");
+        assertThat(invoice.getPaidAt()).isEqualTo(NOW);
+    }
+
+    @Test
+    void overpaymentIsRefusedAndChangesNothing() {
+        Invoice invoice = draftWith(line("1", "1000", "0"));
+        invoice.send(() -> "INV-2026-00001", NOW);
+
+        assertThatThrownBy(() -> invoice.recordPayment(new BigDecimal("1000.01"), NOW))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("more than the balance due of 1000.00 INR");
+        assertThat(invoice.getAmountPaid()).isEqualByComparingTo("0");
+        assertThat(invoice.getStatus()).isEqualTo(InvoiceStatus.SENT);
+    }
+
+    @Test
+    void paymentWithMoreDecimalsThanTheCurrencyIsRefused() {
+        Invoice invoice = draftWith(line("1", "1000", "0"));
+        invoice.send(() -> "INV-2026-00001", NOW);
+
+        assertThatThrownBy(() -> invoice.recordPayment(new BigDecimal("10.005"), NOW))
+                .isInstanceOf(BadRequestException.class);
+    }
+
+    @Test
+    void draftsAndPaidInvoicesTakeNoPayments() {
+        Invoice invoice = draftWith(line("1", "1000", "0"));
+        assertThatThrownBy(() -> invoice.recordPayment(BigDecimal.TEN, NOW))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("send it before");
+
+        invoice.send(() -> "INV-2026-00001", NOW);
+        invoice.recordPayment(new BigDecimal("1000"), NOW);
+        assertThatThrownBy(() -> invoice.recordPayment(BigDecimal.ONE, NOW))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("already paid");
+    }
+
+    @Test
+    void partlyPaidInvoiceCannotBeVoided() {
+        Invoice invoice = draftWith(line("1", "1000", "0"));
+        invoice.send(() -> "INV-2026-00001", NOW);
+        invoice.recordPayment(new BigDecimal("100"), NOW);
+
+        assertThatThrownBy(() -> invoice.voidInvoice("Changed our mind", NOW))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("has payments");
     }
 
     private static Invoice draftWith(LineDraft... lines) {

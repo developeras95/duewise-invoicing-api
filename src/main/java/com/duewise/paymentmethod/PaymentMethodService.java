@@ -3,6 +3,7 @@ package com.duewise.paymentmethod;
 import java.util.List;
 import java.util.Locale;
 
+import com.duewise.common.error.BusinessRuleException;
 import com.duewise.common.error.ConflictException;
 import com.duewise.common.error.NotFoundException;
 import org.springframework.cache.annotation.CacheEvict;
@@ -65,6 +66,19 @@ public class PaymentMethodService {
             method.setSortOrder(request.sortOrder().shortValue());
         }
         return PaymentMethodResponse.from(method);
+    }
+
+    /** For payments: the method named in the request body must exist and be active (422 otherwise). */
+    public PaymentMethod requireActive(String code) {
+        String normalized = code.trim().toUpperCase(Locale.ROOT);
+        PaymentMethod method = repository.findByCode(normalized)
+                .orElseThrow(() -> new BusinessRuleException(
+                        "PAYMENT_METHOD_NOT_FOUND", "Payment method " + normalized + " does not exist."));
+        if (!method.isActive()) {
+            throw new BusinessRuleException("PAYMENT_METHOD_INACTIVE",
+                    "Payment method " + normalized + " is inactive and cannot be used.");
+        }
+        return method;
     }
 
     private PaymentMethod find(String code) {

@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import com.duewise.client.Client;
+import com.duewise.common.error.BadRequestException;
 import com.duewise.common.error.BusinessRuleException;
 import com.duewise.common.error.ConflictException;
 import com.duewise.currency.Currency;
@@ -201,6 +202,51 @@ public class Invoice {
                 this.voidedAt = now;
             }
         }
+    }
+
+    // ----- Payments -------------------------------------------------------------------------
+
+    /** Only issued invoices with money still owed take payments. */
+    public void ensureAcceptsPayment() {
+        switch (status) {
+            case DRAFT -> throw new ConflictException("INVOICE_NOT_SENT",
+                    "Invoice #" + id + " is a draft; send it before recording payments.");
+            case PAID -> throw new ConflictException("INVOICE_ALREADY_PAID",
+                    "Invoice " + describe() + " is already paid in full.");
+            case VOID -> throw new ConflictException("INVOICE_VOID",
+                    "Invoice " + describe() + " is void and cannot take payments.");
+            case SENT, PARTIALLY_PAID -> {
+                // accepted
+            }
+        }
+    }
+
+    /**
+     * Adds a payment to the amount paid and moves the invoice to PARTIALLY_PAID, or to PAID when
+     * nothing is left. Refuses amounts with too many decimals and anything above the balance due.
+     */
+    public void recordPayment(BigDecimal amount, Instant now) {
+        ensureAcceptsPayment();
+        int minorUnits = currency.getMinorUnits();
+        if (InvoiceMath.exceedsPrecision(amount, minorUnits)) {
+            throw new BadRequestException("INVALID_AMOUNT_PRECISION",
+                    "amount has more decimal places than %s allows (%d).".formatted(currency.getCode(), minorUnits));
+        }
+        BigDecimal balance = getBalanceDue();
+        if (amount.compareTo(balance) > 0) {
+            throw new BusinessRuleException("OVERPAYMENT",
+                    "A payment of %s %s is more than the balance due of %s %s.".formatted(
+                            InvoiceMath.round(amount, minorUnits).toPlainString(), currency.getCode(),
+                            InvoiceMath.round(balance, minorUnits).toPlainString(), currency.getCode()));
+        }
+        this.amountPaid = amountPaid.add(amount);
+        if (getBalanceDue().signum() == 0) {
+            this.status = InvoiceStatus.PAID;
+            this.paidAt = now;
+        } else {
+            this.status = InvoiceStatus.PARTIALLY_PAID;
+        }
+        this.updatedAt = now;
     }
 
     // ----- Derived values -------------------------------------------------------------------
