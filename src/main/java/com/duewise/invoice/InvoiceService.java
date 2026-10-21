@@ -127,6 +127,12 @@ public class InvoiceService {
         return InvoiceResponse.from(repository.saveAndFlush(invoice), today());
     }
 
+    /** Used by payments to load the invoice named in the URL (404 when missing). */
+    public Invoice require(Long id) {
+        return repository.findById(id)
+                .orElseThrow(() -> new NotFoundException("INVOICE_NOT_FOUND", "Invoice " + id + " was not found."));
+    }
+
     // ----- Helpers --------------------------------------------------------------------------
 
     private Invoice find(Long id) {
