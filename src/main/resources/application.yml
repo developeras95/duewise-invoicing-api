@@ -15,6 +15,12 @@ spring:
           time_zone: UTC
   flyway:
     locations: classpath:db/migration
+  mail:
+    # Mailpit from compose.yaml catches everything locally; inbox at http://localhost:8025
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:1025}
+    # A real SMTP server also needs SPRING_MAIL_USERNAME, SPRING_MAIL_PASSWORD and
+    # SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH=true / ..._STARTTLS_ENABLE=true as environment variables.
 
 server:
   port: ${SERVER_PORT:8080}
@@ -41,3 +47,18 @@ duewise:
   business:
     # Decides what "today" is for default issue dates and overdue checks.
     time-zone: ${BUSINESS_TIME_ZONE:Asia/Kolkata}
+    # Printed on PDF invoices and emails; change these to rebrand without touching code.
+    name: ${BUSINESS_NAME:Duewise Demo Studio}
+    address-lines: ${BUSINESS_ADDRESS:12 MG Road,Bengaluru 560001,India}
+    # No default: set BUSINESS_EMAIL to print a contact address on invoices.
+    email: ${BUSINESS_EMAIL:}
+    tax-id: ${BUSINESS_TAX_ID:}
+  mail:
+    from: ${MAIL_FROM:Duewise <billing@duewise.local>}
+    reply-to: ${MAIL_REPLY_TO:}
+  reminders:
+    scheduler-enabled: ${REMINDERS_SCHEDULER_ENABLED:true}
+    # Spring cron: second minute hour day month weekday, in the business time zone.
+    cron: ${REMINDERS_CRON:0 0 9 * * *}
+    # Used only to fill the owner-summary recipient list on first start; afterwards use the API.
+    owner-emails: ${REMINDER_OWNER_EMAILS:owner@duewise.local}

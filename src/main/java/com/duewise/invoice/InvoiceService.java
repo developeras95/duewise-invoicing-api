@@ -127,6 +127,16 @@ public class InvoiceService {
         return InvoiceResponse.from(repository.saveAndFlush(invoice), today());
     }
 
+    /** Invoice with client, currency and lines loaded, for PDFs (404 when missing). */
+    public Invoice requireWithDetails(Long id) {
+        return find(id);
+    }
+
+    /** Every invoice with money owed past its due date, for reminders and the owner summary. */
+    public List<Invoice> findOverdue(LocalDate today) {
+        return repository.findOverdueWithDetails(List.of(InvoiceStatus.SENT, InvoiceStatus.PARTIALLY_PAID), today);
+    }
+
     /** Used by payments to load the invoice named in the URL (404 when missing). */
     public Invoice require(Long id) {
         return repository.findById(id)
