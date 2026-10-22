@@ -16,12 +16,33 @@
     <version>0.1.0-SNAPSHOT</version>
     <name>Duewise Invoicing API</name>
     <description>Invoicing, payments and overdue reminders for freelancers and small businesses</description>
+    <url>https://github.com/developeras95/duewise-invoicing-api</url>
+    <inceptionYear>2026</inceptionYear>
+
+    <!-- Proprietary: the code is public to read, not to use. See LICENSE. -->
+    <licenses>
+        <license>
+            <name>Proprietary - All rights reserved</name>
+            <url>https://github.com/developeras95/duewise-invoicing-api/blob/main/LICENSE</url>
+            <distribution>manual</distribution>
+        </license>
+    </licenses>
+
+    <developers>
+        <developer>
+            <id>developeras95</id>
+            <name>Abhijit Saha</name>
+            <url>https://github.com/developeras95</url>
+        </developer>
+    </developers>
 
     <properties>
         <java.version>21</java.version>
         <springdoc.version>3.1.1</springdoc.version>
         <openhtmltopdf.version>1.1.87</openhtmltopdf.version>
         <greenmail.version>2.1.14</greenmail.version>
+        <jacoco.version>0.8.15</jacoco.version>
+        <license-plugin.version>2.7.1</license-plugin.version>
     </properties>
 
     <dependencies>
@@ -125,6 +146,49 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+
+            <!--
+              Test coverage. prepare-agent hooks JaCoCo into the test JVM; report runs in the
+              verify phase and writes target/site/jacoco/index.html (plus jacoco.xml / jacoco.csv
+              for CI). Run: ./mvnw verify
+            -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>${jacoco.version}</version>
+                <executions>
+                    <execution>
+                        <id>prepare-agent</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!--
+              Third-party licence list. Not part of the normal build; regenerate THIRD-PARTY.txt
+              whenever a dependency changes: ./mvnw license:add-third-party
+              Test-only libraries are left out because they are not shipped.
+            -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>license-maven-plugin</artifactId>
+                <version>${license-plugin.version}</version>
+                <configuration>
+                    <outputDirectory>${project.basedir}</outputDirectory>
+                    <thirdPartyFilename>THIRD-PARTY.txt</thirdPartyFilename>
+                    <excludedScopes>test,provided,system</excludedScopes>
+                    <sortArtifactByName>true</sortArtifactByName>
+                </configuration>
             </plugin>
         </plugins>
     </build>
