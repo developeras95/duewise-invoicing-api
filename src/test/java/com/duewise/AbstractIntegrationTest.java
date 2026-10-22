@@ -11,7 +11,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
  * container" pattern), so the database boots once per test run instead of once per class.
  * {@link ServiceConnection} points the application's datasource at it automatically.
  */
-@SpringBootTest
+@SpringBootTest(properties = "duewise.reminders.scheduler-enabled=false")
 public abstract class AbstractIntegrationTest {
 
     @ServiceConnection

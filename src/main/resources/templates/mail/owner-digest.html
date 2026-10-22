@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Overdue invoices</title>
+</head>
+<body style="margin: 0; padding: 24px; background: #f6f8fa; font-family: Helvetica, Arial, sans-serif; color: #1f2328;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width: 720px; margin: 0 auto; background: #ffffff; border: 1px solid #d1d9e0; border-radius: 8px;">
+    <tr>
+        <td style="padding: 28px 32px;">
+            <p style="margin: 0 0 4px; font-size: 13px; color: #59636e;" th:text="${businessName} + ' · daily summary for ' + ${today}">Summary</p>
+            <h1 style="margin: 0 0 20px; font-size: 20px;"
+                th:text="${#lists.size(invoices)} + (${#lists.size(invoices)} == 1 ? ' invoice is' : ' invoices are') + ' overdue'">Invoices are overdue</h1>
+
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse: collapse; font-size: 14px;">
+                <tr>
+                    <th style="text-align: left; padding: 8px 8px 8px 0; border-bottom: 2px solid #1f2328; font-size: 12px; color: #59636e;">Invoice</th>
+                    <th style="text-align: left; padding: 8px; border-bottom: 2px solid #1f2328; font-size: 12px; color: #59636e;">Client</th>
+                    <th style="text-align: left; padding: 8px; border-bottom: 2px solid #1f2328; font-size: 12px; color: #59636e;">Due</th>
+                    <th style="text-align: right; padding: 8px; border-bottom: 2px solid #1f2328; font-size: 12px; color: #59636e;">Days late</th>
+                    <th style="text-align: right; padding: 8px 0 8px 8px; border-bottom: 2px solid #1f2328; font-size: 12px; color: #59636e;">Balance due</th>
+                </tr>
+                <tr th:each="inv : ${invoices}">
+                    <td style="padding: 8px 8px 8px 0; border-bottom: 1px solid #d1d9e0;" th:text="${inv.label()}">INV-2026-00001</td>
+                    <td style="padding: 8px; border-bottom: 1px solid #d1d9e0;" th:text="${inv.clientName()}">Client</td>
+                    <td style="padding: 8px; border-bottom: 1px solid #d1d9e0;" th:text="${inv.dueDate()}">1 Oct 2026</td>
+                    <td style="padding: 8px; border-bottom: 1px solid #d1d9e0; text-align: right; color: #cf222e;" th:text="${inv.daysOverdue()}">10</td>
+                    <td style="padding: 8px 0 8px 8px; border-bottom: 1px solid #d1d9e0; text-align: right; font-weight: bold;" th:text="${inv.balanceDue()}">INR 0.00</td>
+                </tr>
+            </table>
+
+            <p style="margin: 20px 0 0; font-size: 13px; color: #59636e;">
+                Clients with reminders switched on are emailed automatically on their reminder days. Change recipients or
+                reminder days with PUT /api/v1/settings/reminders.
+            </p>
+        </td>
+    </tr>
+</table>
+</body>
+</html>

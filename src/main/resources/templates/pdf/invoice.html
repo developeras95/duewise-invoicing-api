@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<!--
+  Invoice PDF template. Must stay well-formed XHTML (close every tag, no HTML entities such as
+  &nbsp;) because OpenHTMLtoPDF parses it as XML. Values come from InvoiceDocument; accessors are
+  called as methods, e.g. ${doc.total()}.
+-->
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title th:text="${doc.label()}">Invoice</title>
+    <style>
+        @page { size: A4; margin: 18mm 16mm 20mm 16mm; }
+        body { font-family: Helvetica, Arial, sans-serif; font-size: 9.5pt; color: #1f2328; }
+        table { border-collapse: collapse; width: 100%; }
+        td, th { vertical-align: top; }
+        .muted { color: #59636e; }
+        .right { text-align: right; }
+        .header td { padding: 0; }
+        .business-name { font-size: 16pt; font-weight: bold; margin-bottom: 4pt; }
+        .doc-title { font-size: 20pt; font-weight: bold; letter-spacing: 1pt; }
+        .doc-number { font-size: 11pt; margin-top: 2pt; }
+        .meta { margin-top: 8pt; width: auto; margin-left: auto; }
+        .meta td { padding: 1.5pt 0 1.5pt 10pt; white-space: nowrap; }
+        .parties { margin-top: 22pt; }
+        .label { font-size: 8pt; font-weight: bold; text-transform: uppercase; letter-spacing: 0.6pt; color: #59636e; margin-bottom: 4pt; }
+        .lines { margin-top: 22pt; }
+        .lines th { font-size: 8pt; text-transform: uppercase; letter-spacing: 0.5pt; color: #59636e;
+                    border-bottom: 1.2pt solid #1f2328; padding: 5pt 6pt; text-align: left; }
+        .lines td { border-bottom: 0.6pt solid #d1d9e0; padding: 6pt; }
+        .lines .num { text-align: right; white-space: nowrap; }
+        .totals { margin-top: 10pt; width: 46%; margin-left: 54%; }
+        .totals td { padding: 3pt 6pt; }
+        .totals .grand td { border-top: 1.2pt solid #1f2328; font-weight: bold; font-size: 11pt; padding-top: 6pt; }
+        .totals .due td { font-weight: bold; font-size: 12pt; }
+        .stamp { margin-top: 6pt; display: inline-block; border: 2pt solid #1a7f37; color: #1a7f37;
+                 padding: 3pt 10pt; font-size: 13pt; font-weight: bold; letter-spacing: 2pt; }
+        .stamp-void { border-color: #cf222e; color: #cf222e; }
+        .stamp-draft { border-color: #59636e; color: #59636e; }
+        .overdue { color: #cf222e; font-weight: bold; }
+        .notes { margin-top: 24pt; }
+        .footer { margin-top: 30pt; font-size: 8pt; color: #59636e; border-top: 0.6pt solid #d1d9e0; padding-top: 6pt; }
+    </style>
+</head>
+<body>
+
+<table class="header">
+    <tr>
+        <td style="width: 55%;">
+            <div class="business-name" th:text="${doc.businessName()}">Business name</div>
+            <div th:each="line : ${doc.businessAddress()}" th:text="${line}">Address line</div>
+            <div class="muted" th:if="${doc.businessEmail() != null}" th:text="${doc.businessEmail()}">billing@example.com</div>
+            <div class="muted" th:if="${doc.businessTaxId() != null}" th:text="'Tax ID: ' + ${doc.businessTaxId()}">Tax ID</div>
+        </td>
+        <td class="right" style="width: 45%;">
+            <div class="doc-title">INVOICE</div>
+            <div class="doc-number" th:text="${doc.invoiceNumber() != null ? doc.invoiceNumber() : 'Not yet issued'}">INV-2026-00001</div>
+            <div th:if="${doc.draft()}" class="stamp stamp-draft">DRAFT</div>
+            <div th:if="${doc.paid()}" class="stamp">PAID</div>
+            <div th:if="${doc.voided()}" class="stamp stamp-void">VOID</div>
+            <table class="meta">
+                <tr><td class="right muted">Issue date</td><td class="right muted" th:text="${doc.issueDate()}">1 Oct 2026</td></tr>
+                <tr><td class="right muted">Due date</td><td class="right muted" th:text="${doc.dueDate()}">31 Oct 2026</td></tr>
+                <tr th:if="${doc.overdue()}"><td class="right muted">Status</td><td class="right overdue" th:text="${doc.daysOverdue()} + ' days overdue'">Overdue</td></tr>
+            </table>
+        </td>
+    </tr>
+</table>
+
+<table class="parties">
+    <tr>
+        <td style="width: 55%;">
+            <div class="label">Bill to</div>
+            <div style="font-weight: bold;" th:text="${doc.clientName()}">Client name</div>
+            <div th:each="line : ${doc.clientAddress()}" th:text="${line}">Client address</div>
+            <div class="muted" th:text="${doc.clientEmail()}">client@example.com</div>
+            <div class="muted" th:if="${doc.clientTaxId() != null}" th:text="'Tax ID: ' + ${doc.clientTaxId()}">Client tax ID</div>
+        </td>
+        <td class="right" style="width: 45%;">
+            <div class="label">Amount due</div>
+            <div style="font-size: 16pt; font-weight: bold;" th:text="${doc.balanceDue()}">INR 0.00</div>
+        </td>
+    </tr>
+</table>
+
+<table class="lines">
+    <thead>
+    <tr>
+        <th style="width: 5%;">#</th>
+        <th style="width: 45%;">Description</th>
+        <th class="num" style="width: 10%;">Qty</th>
+        <th class="num" style="width: 15%;">Unit price</th>
+        <th class="num" style="width: 8%;">Tax</th>
+        <th class="num" style="width: 17%;">Amount</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr th:each="line : ${doc.lines()}">
+        <td th:text="${line.lineNo()}">1</td>
+        <td th:text="${line.description()}">Work</td>
+        <td class="num" th:text="${line.quantity()}">1</td>
+        <td class="num" th:text="${line.unitPrice()}">INR 0.00</td>
+        <td class="num" th:text="${line.taxRate()}">0%</td>
+        <td class="num" th:text="${line.lineTotal()}">INR 0.00</td>
+    </tr>
+    </tbody>
+</table>
+
+<table class="totals">
+    <tr><td class="muted">Subtotal</td><td class="right" th:text="${doc.subtotal()}">INR 0.00</td></tr>
+    <tr><td class="muted">Tax</td><td class="right" th:text="${doc.taxTotal()}">INR 0.00</td></tr>
+    <tr class="grand"><td>Total</td><td class="right" th:text="${doc.total()}">INR 0.00</td></tr>
+    <tr><td class="muted">Paid</td><td class="right" th:text="${doc.amountPaid()}">INR 0.00</td></tr>
+    <tr class="due"><td>Balance due</td><td class="right" th:text="${doc.balanceDue()}">INR 0.00</td></tr>
+</table>
+
+<div class="notes" th:if="${doc.notes() != null}">
+    <div class="label">Notes</div>
+    <div th:text="${doc.notes()}">Notes</div>
+</div>
+
+<div class="footer">
+    <span th:if="${doc.businessEmail() != null}" th:text="'Questions about this invoice? Reply to ' + ${doc.businessEmail()} + ' quoting ' + ${doc.label()} + '.'">Footer</span>
+    <span th:unless="${doc.businessEmail() != null}" th:text="'Questions about this invoice? Please quote ' + ${doc.label()} + '.'">Footer</span>
+</div>
+
+</body>
+</html>
