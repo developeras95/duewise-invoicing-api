@@ -80,7 +80,7 @@ class PdfAndReminderIntegrationTest extends AbstractIntegrationTest {
     @Test
     void reminderRunEmailsClientsAndOwnerOnceOnly() throws Exception {
         LocalDate today = LocalDate.now(clock);
-        updateSettings("owner@duewise.test", "accountant@duewise.test");
+        updateSettings(true, "owner@duewise.test", "accountant@duewise.test");
 
         String clientEmail = "accounts+" + UUID.randomUUID() + "@example.com";
         long clientId = createClient("Godavari Foods", clientEmail);
@@ -125,9 +125,107 @@ class PdfAndReminderIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.content[0].status").value("SENT"));
     }
 
+    @Test
+    void draftPaidAndVoidInvoicesCarryTheirStampOnThePdf() throws Exception {
+        LocalDate today = LocalDate.now(clock);
+        long clientId = createClient("Narmada Textiles", "accounts+" + UUID.randomUUID() + "@example.com");
+
+        long draft = createInvoice(clientId, today, today.plusDays(30), "1", "1000", "0");
+        byte[] draftPdf = mvc.perform(get("/api/v1/invoices/{id}/pdf", draft))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition", "inline; filename=\"draft-" + draft + ".pdf\""))
+                .andReturn().getResponse().getContentAsByteArray();
+        assertThat(textOf(draftPdf)).contains("Not yet issued");
+        assertThat(withoutSpaces(textOf(draftPdf))).contains("DRAFT");
+
+        long paid = createInvoice(clientId, today, today.plusDays(30), "1", "1000", "0");
+        send(paid);
+        mvc.perform(post("/api/v1/invoices/{id}/payments", paid)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"amount": 1000, "paymentMethod": "CASH"}
+                                """))
+                .andExpect(status().isCreated());
+        assertThat(pdfText(paid)).contains("Balance due INR 0.00");
+        assertThat(withoutSpaces(pdfText(paid))).contains("PAID");
+
+        long voided = createInvoice(clientId, today, today.plusDays(30), "1", "1000", "0");
+        send(voided);
+        mvc.perform(post("/api/v1/invoices/{id}/void", voided)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"reason": "Raised against the wrong client"}
+                                """))
+                .andExpect(status().isOk());
+        assertThat(withoutSpaces(pdfText(voided))).contains("VOID");
+    }
+
+    @Test
+    void failedRemindersAreLoggedAndSentOnTheNextRun() throws Exception {
+        LocalDate today = LocalDate.now(clock);
+        // The daily owner summary is not part of this test; switching it off keeps a failed
+        // summary from being logged for today.
+        updateSettings(false, "owner@duewise.test", "accountant@duewise.test");
+
+        String clientEmail = "accounts+" + UUID.randomUUID() + "@example.com";
+        long clientId = createClient("Tapti Logistics", clientEmail);
+        long tenDaysLate = createInvoice(clientId, today.minusDays(40), today.minusDays(10), "1", "750", "0");
+        String number = send(tenDaysLate);
+
+        // Mail server down: the attempt is logged as FAILED with the error.
+        greenMail.stop();
+        mvc.perform(post("/api/v1/reminders/run"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.clientRemindersFailed").value(org.hamcrest.Matchers.greaterThanOrEqualTo(1)));
+        String failedLog = reminderLog();
+        assertThat(logField(failedLog, tenDaysLate, "status")).isEqualTo("FAILED");
+        assertThat(logField(failedLog, tenDaysLate, "attempts")).isEqualTo(1);
+        assertThat(logField(failedLog, tenDaysLate, "lastError")).isNotNull();
+        // Catch-up rule: 10 days overdue with no reminder yet gets the day-7 reminder.
+        assertThat(logField(failedLog, tenDaysLate, "reminderDay")).isEqualTo(7);
+
+        // Mail server back: the next run sends it, and the same log row records the second attempt.
+        greenMail.start();
+        mvc.perform(post("/api/v1/reminders/run")).andExpect(status().isOk());
+        String sentLog = reminderLog();
+        assertThat(logField(sentLog, tenDaysLate, "status")).isEqualTo("SENT");
+        assertThat(logField(sentLog, tenDaysLate, "attempts")).isEqualTo(2);
+        assertThat(logField(sentLog, tenDaysLate, "lastError")).isNull();
+        assertThat(messagesTo(clientEmail)).extracting(MimeMessage::getSubject)
+                .containsExactly("Reminder: invoice " + number + " is 10 days overdue");
+    }
+
     // ----- helpers ---------------------------------------------------------------------------
 
-    private void updateSettings(String owner, String cc) throws Exception {
+    private String pdfText(long invoiceId) throws Exception {
+        byte[] pdf = mvc.perform(get("/api/v1/invoices/{id}/pdf", invoiceId))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsByteArray();
+        return textOf(pdf);
+    }
+
+    /**
+     * The stamps are printed with letter-spacing, which text extraction turns into real spaces
+     * ("D R A F T"), so stamps are compared with all whitespace removed.
+     */
+    private static String withoutSpaces(String text) {
+        return text.replaceAll("\\s+", "");
+    }
+
+    private String reminderLog() throws Exception {
+        return mvc.perform(get("/api/v1/reminders/log").param("size", "100"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+    }
+
+    /** One field of the client-reminder log row for an invoice (exactly one row expected). */
+    private static Object logField(String logJson, long invoiceId, String field) {
+        List<Object> values = JsonPath.read(logJson, "$.content[?(@.invoiceId == " + invoiceId + ")]." + field);
+        assertThat(values).as("log rows for invoice " + invoiceId).hasSize(1);
+        return values.getFirst();
+    }
+
+    private void updateSettings(boolean ownerDigestEnabled, String owner, String cc) throws Exception {
         String current = mvc.perform(get("/api/v1/settings/reminders"))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
@@ -135,10 +233,10 @@ class PdfAndReminderIntegrationTest extends AbstractIntegrationTest {
         mvc.perform(put("/api/v1/settings/reminders")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"ownerDigestEnabled": true, "clientRemindersEnabled": true,
+                                {"ownerDigestEnabled": %b, "clientRemindersEnabled": true,
                                  "recipients": [{"email": "%s", "type": "TO"}, {"email": "%s", "type": "CC"}],
                                  "reminderDays": [1, 7, 14], "version": %d}
-                                """.formatted(owner, cc, version)))
+                                """.formatted(ownerDigestEnabled, owner, cc, version)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.version").value(version + 1));
     }
