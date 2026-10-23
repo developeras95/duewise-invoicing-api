@@ -1,0 +1,14 @@
+# Keep the build context small and free of secrets: only what the Dockerfile copies is needed.
+target/
+.git/
+.github/
+.idea/
+.run/
+.vscode/
+*.iml
+.env
+application-local.yml
+*.log
+postman/
+.postman/
+scripts/

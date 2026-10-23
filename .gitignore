@@ -24,4 +24,5 @@ Thumbs.db
 # Local secrets and overrides
 .env
 application-local.yml
+docker-compose.override.yml
 *.log

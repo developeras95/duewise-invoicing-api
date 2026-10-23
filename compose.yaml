@@ -1,7 +1,8 @@
-# Local development services for Duewise.
-#   docker compose up -d     start Postgres and Mailpit
-#   docker compose down      stop them (data is kept in the duewise-pgdata volume)
-#   docker compose down -v   stop them and delete the database
+# Local services for Duewise.
+#   docker compose up -d                       start Postgres and Mailpit (run the app from your IDE)
+#   docker compose --profile app up -d --build  also build and start the app itself on http://localhost:8080
+#   docker compose --profile app down           stop everything (data is kept in the duewise-pgdata volume)
+#   docker compose down -v                      stop and delete the database
 name: duewise
 
 services:
@@ -27,6 +28,29 @@ services:
     ports:
       - "8025:8025"   # web UI
       - "1025:1025"   # SMTP
+
+  # The application, built from the Dockerfile. Only started with --profile app, so the normal
+  # development setup (app in the IDE, services in Docker) is unchanged.
+  app:
+    profiles: ["app"]
+    build: .
+    image: duewise-invoicing-api:local
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+    environment:
+      # Inside Docker's network the services are reached by name, not localhost.
+      DB_URL: jdbc:postgresql://postgres:5432/duewise
+      DB_USERNAME: duewise
+      DB_PASSWORD: duewise
+      MAIL_HOST: mailpit
+      MAIL_PORT: 1025
+      # Optional: taken from your shell or a .env file next to this one when set.
+      BUSINESS_EMAIL: ${BUSINESS_EMAIL:-}
+    ports:
+      - "${APP_PORT:-8080}:8080"
 
 volumes:
   duewise-pgdata:
