@@ -42,6 +42,9 @@
         <openhtmltopdf.version>1.1.87</openhtmltopdf.version>
         <greenmail.version>2.1.14</greenmail.version>
         <jacoco.version>0.8.15</jacoco.version>
+        <!-- Minimum test coverage; ./mvnw verify fails below these (CI runs the same check). -->
+        <coverage.lines.minimum>0.90</coverage.lines.minimum>
+        <coverage.branches.minimum>0.70</coverage.branches.minimum>
         <license-plugin.version>2.7.1</license-plugin.version>
     </properties>
 
@@ -151,7 +154,9 @@
             <!--
               Test coverage. prepare-agent hooks JaCoCo into the test JVM; report runs in the
               verify phase and writes target/site/jacoco/index.html (plus jacoco.xml / jacoco.csv
-              for CI). Run: ./mvnw verify
+              for CI); check then fails the build if coverage is below the minimums in
+              <properties>. The report is written first, so it is there to read when check fails.
+              Run: ./mvnw verify
             -->
             <plugin>
                 <groupId>org.jacoco</groupId>
@@ -170,6 +175,32 @@
                         <goals>
                             <goal>report</goal>
                         </goals>
+                    </execution>
+                    <execution>
+                        <id>check</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <rule>
+                                    <element>BUNDLE</element>
+                                    <limits>
+                                        <limit>
+                                            <counter>LINE</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>${coverage.lines.minimum}</minimum>
+                                        </limit>
+                                        <limit>
+                                            <counter>BRANCH</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>${coverage.branches.minimum}</minimum>
+                                        </limit>
+                                    </limits>
+                                </rule>
+                            </rules>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>
