@@ -17,6 +17,7 @@ place, sends the PDF reminder for you on a schedule you choose, and emails you o
 - [Features](#features)
 - [Screenshots](#screenshots)
 - [Quick start (Docker only)](#quick-start-docker-only)
+- [Releases](#releases)
 - [Developer setup](#developer-setup)
 - [Configuration](#configuration)
 - [API overview](#api-overview)
@@ -75,6 +76,18 @@ When `docker compose logs app` shows `Started DuewiseApplication`, open:
 
 No email leaves your computer in this setup: [Mailpit](https://mailpit.axllent.org/) catches it all.
 Stop with `docker compose --profile app down` (the database is kept; add `-v` to delete it).
+
+## Releases
+
+Each version is published on the [Releases page](https://github.com/developeras95/duewise-invoicing-api/releases)
+with its runnable jar and notes, and as a Docker image on GitHub Container Registry:
+
+```bash
+docker pull ghcr.io/developeras95/duewise-invoicing-api:1.0.0
+```
+
+The image needs a PostgreSQL database and an SMTP server; the Compose setup above provides both. Changes per
+version are listed in [CHANGELOG.md](CHANGELOG.md).
 
 ## Developer setup
 

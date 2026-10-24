@@ -1,0 +1,74 @@
+# Publishes a release when a version tag is pushed:  git tag v1.0.0  then  git push origin v1.0.0
+#   1. checks the tag matches the version in pom.xml and has a CHANGELOG.md entry
+#   2. builds and runs every test (the same ./mvnw verify as CI)
+#   3. pushes the Docker image to GitHub Container Registry (ghcr.io)
+#   4. creates the GitHub Release with the jar and the changelog section as notes
+# Nothing is published unless every step before it succeeded.
+name: Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: write           # create the GitHub Release
+  packages: write           # push the image to ghcr.io
+
+jobs:
+  release:
+    name: Build, test and publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v7
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Check the tag, pom.xml and CHANGELOG.md agree
+        run: |
+          version=$(./mvnw --batch-mode --quiet -DforceStdout help:evaluate -Dexpression=project.version)
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match version $version in pom.xml"; exit 1
+          fi
+          awk -v v="$version" 'index($0, "## [" v "]") == 1 {f = 1; next} /^## \[/ {f = 0} f' CHANGELOG.md \
+            | sed -e '/./,$!d' > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "::error::CHANGELOG.md has no section for [$version]"; exit 1
+          fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+
+      - name: Build and run all tests
+        run: ./mvnw --batch-mode --no-transfer-progress verify
+
+      - name: Log in to GitHub Container Registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io --username "${{ github.actor }}" --password-stdin
+
+      - name: Build and push the Docker image
+        run: |
+          docker build --tag "$IMAGE:$VERSION" --tag "$IMAGE:latest" .
+          docker push "$IMAGE:$VERSION"
+          docker push "$IMAGE:latest"
+
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo
+            echo "### Downloads"
+            echo
+            echo "- Runnable jar (Java 21): \`duewise-invoicing-api-$VERSION.jar\` below, then \`java -jar duewise-invoicing-api-$VERSION.jar\`"
+            echo "- Docker image: \`docker pull $IMAGE:$VERSION\`"
+            echo
+            echo "Licence: proprietary, all rights reserved. See LICENSE."
+          } >> release-notes.md
+          gh release create "$GITHUB_REF_NAME" "target/duewise-invoicing-api-$VERSION.jar" \
+            --title "Duewise $VERSION" --notes-file release-notes.md --verify-tag
