@@ -43,7 +43,8 @@ springdoc:
 
 duewise:
   api:
-    version: 0.1.0
+    # Filled in from pom.xml at build time, so Swagger always shows the released version.
+    version: '@project.version@'
   business:
     # Decides what "today" is for default issue dates and overdue checks.
     time-zone: ${BUSINESS_TIME_ZONE:Asia/Kolkata}

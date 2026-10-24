@@ -13,7 +13,7 @@
 
     <groupId>com.duewise</groupId>
     <artifactId>duewise-invoicing-api</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <version>1.0.0</version>
     <name>Duewise Invoicing API</name>
     <description>Invoicing, payments and overdue reminders for freelancers and small businesses</description>
     <url>https://github.com/developeras95/duewise-invoicing-api</url>
