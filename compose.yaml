@@ -45,10 +45,18 @@ services:
       DB_URL: jdbc:postgresql://postgres:5432/duewise
       DB_USERNAME: duewise
       DB_PASSWORD: duewise
-      MAIL_HOST: mailpit
-      MAIL_PORT: 1025
+      # Mail: Mailpit unless a .env file next to this one (or your shell) sets these.
+      # For real email, put MAIL_HOST, MAIL_PORT, SPRING_MAIL_USERNAME, SPRING_MAIL_PASSWORD,
+      # the two SPRING_MAIL_PROPERTIES_... flags (true) and MAIL_FROM in .env.
+      MAIL_HOST: ${MAIL_HOST:-mailpit}
+      MAIL_PORT: ${MAIL_PORT:-1025}
+      SPRING_MAIL_USERNAME: ${SPRING_MAIL_USERNAME:-}
+      SPRING_MAIL_PASSWORD: ${SPRING_MAIL_PASSWORD:-}
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH: ${SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH:-false}
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE: ${SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE:-false}
+      MAIL_FROM: "${MAIL_FROM:-Duewise <billing@duewise.local>}"
       # Optional: taken from your shell or a .env file next to this one when set.
-      BUSINESS_EMAIL: ${BUSINESS_EMAIL:-}
+      BUSINESS_EMAIL: ${BUSINESS_EMAIL:-billing@duewise.example}
     ports:
       - "${APP_PORT:-8080}:8080"
 
