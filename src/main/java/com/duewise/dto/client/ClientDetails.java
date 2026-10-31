@@ -1,0 +1,20 @@
+package com.duewise.dto.client;
+
+import com.duewise.entity.client.Address;
+import com.duewise.entity.currency.Currency;
+
+/**
+ * The editable fields of a client after the service has cleaned and checked them (trimmed text,
+ * resolved currency). Keeps the entity free of request/DTO types.
+ */
+public record ClientDetails(
+        String name,
+        String email,
+        String billingEmail,
+        String phone,
+        String taxId,
+        Address address,
+        Currency defaultCurrency,
+        short paymentTermsDays,
+        boolean remindersEnabled) {
+}

@@ -316,22 +316,26 @@ Docker must be running for the integration tests.
 
 ## Project structure
 
+Code is organised by layer first, then by feature inside each layer:
+
 ```
 src/main/java/com/duewise/
-├── client/          clients and their addresses
-├── invoice/         invoices, line items, totals, numbering, status rules
-├── payment/         payments against invoices
-├── statement/       per-client balances and ageing
-├── pdf/             PDF rendering from a Thymeleaf template
-├── reminder/        daily job, reminder emails, settings, log
-├── currency/        currency reference data
-├── paymentmethod/   payment method reference data
-├── common/          error handling, paging, money formatting
-└── config/          application settings, clock, caching, OpenAPI
+├── controller/      REST endpoints, one package per feature; error/ holds the global exception handler
+├── service/         business logic and transactions; also the reminder job, mailer and invoice numbering
+├── repository/      Spring Data repositories, query specifications and the JDBC statement query
+├── entity/          JPA entities and their enums (Client, Invoice, Payment, ReminderLog, ...)
+├── dto/             request and response records, mapped from entities by their from(...) methods
+├── exception/       the application's exceptions, each mapped to an HTTP status
+├── util/            money formatting and invoice arithmetic
+└── config/          application settings, clock, caching, scheduling, OpenAPI
 src/main/resources/
 ├── db/migration/    Flyway SQL migrations (V1–V5)
 └── templates/       PDF and email templates
 ```
+
+Each layer has the same feature packages: `client`, `currency`, `invoice`, `payment`, `paymentmethod`, `pdf`,
+`reminder` and `statement`. Tests mirror the package of the class they test; the API-level integration tests
+are in the root package.
 
 ## Tech stack
 
