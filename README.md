@@ -80,14 +80,27 @@ Stop with `docker compose --profile app down` (the database is kept; add `-v` to
 ## Releases
 
 Each version is published on the [Releases page](https://github.com/developeras95/duewise-invoicing-api/releases)
-with its runnable jar and notes, and as a Docker image on GitHub Container Registry:
+with a ready-to-run Compose file, the runnable jar and release notes, and as a Docker image on GitHub Container
+Registry (`ghcr.io/developeras95/duewise-invoicing-api`). Changes per version are in [CHANGELOG.md](CHANGELOG.md).
+
+### Run a release without cloning
+
+The released image needs PostgreSQL and a mail server next to it. `compose.release.yaml`, attached to every
+release, starts all three with one command. Only Docker is needed:
 
 ```bash
-docker pull ghcr.io/developeras95/duewise-invoicing-api:1.0.0
+curl -LO https://github.com/developeras95/duewise-invoicing-api/releases/latest/download/compose.release.yaml
+docker compose -f compose.release.yaml up -d
 ```
 
-The image needs a PostgreSQL database and an SMTP server; the Compose setup above provides both. Changes per
-version are listed in [CHANGELOG.md](CHANGELOG.md).
+On Windows PowerShell type `curl.exe`, or download the file from the Releases page in a browser. Then open
+http://localhost:8080/swagger-ui.html, and http://localhost:8025 for the emails. Stop with
+`docker compose -f compose.release.yaml down` (add `-v` to delete the data). A `.env` file next to it is read
+as described in [Sending real email](#sending-real-email); `APP_PORT=8081` moves the app if 8080 is taken.
+
+Running the image with a bare `docker run` fails with `Connection to localhost:5432 refused`: inside a
+container, `localhost` is the container itself, not your computer. Use the Compose file, which wires the
+services together.
 
 ## Developer setup
 

@@ -5,6 +5,14 @@ MAJOR for breaking API changes, MINOR for new features, PATCH for fixes.
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-11-01
+
+### Added
+
+- `compose.release.yaml`, attached to every release: runs the released image with PostgreSQL and Mailpit
+  using one command, with nothing installed but Docker.
+- README: how to run a release without cloning, and why a bare `docker run` cannot reach the database.
+
 ## [1.0.0] - 2026-10-25
 
 First release: invoicing, payments and automatic overdue reminders as a REST API.
@@ -27,5 +35,6 @@ First release: invoicing, payments and automatic overdue reminders as a REST API
 - Docker image and Docker Compose setup; configuration through environment variables or `.env`.
 - 131 automated tests against real PostgreSQL and SMTP servers, a coverage gate and GitHub Actions CI.
 
-[Unreleased]: https://github.com/developeras95/duewise-invoicing-api/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/developeras95/duewise-invoicing-api/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/developeras95/duewise-invoicing-api/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/developeras95/duewise-invoicing-api/releases/tag/v1.0.0

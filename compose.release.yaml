@@ -1,0 +1,59 @@
+# Run a released version of Duewise with nothing installed but Docker: no clone, no Java.
+#
+#   1. Download this file (it is attached to every GitHub Release).
+#   2. In the folder where you saved it:   docker compose -f compose.release.yaml up -d
+#   3. Open http://localhost:8080/swagger-ui.html   (emails: http://localhost:8025)
+#
+#   Stop:                       docker compose -f compose.release.yaml down
+#   Stop and delete all data:   docker compose -f compose.release.yaml down -v
+#
+# Settings: a .env file next to this one is read automatically (see .env.example in the repository),
+# e.g. APP_PORT=8081 if 8080 is taken, or the mail settings for real email instead of Mailpit.
+name: duewise-release
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: duewise
+      POSTGRES_USER: duewise
+      POSTGRES_PASSWORD: duewise
+    volumes:
+      - duewise-release-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U duewise -d duewise"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Catches every email the app sends. Inbox: http://localhost:8025
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "${MAILPIT_PORT:-8025}:8025"
+
+  app:
+    # The release workflow pins this tag to the release's version in the attached copy.
+    image: ghcr.io/developeras95/duewise-invoicing-api:latest
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/duewise
+      DB_USERNAME: duewise
+      DB_PASSWORD: duewise
+      MAIL_HOST: ${MAIL_HOST:-mailpit}
+      MAIL_PORT: ${MAIL_PORT:-1025}
+      SPRING_MAIL_USERNAME: ${SPRING_MAIL_USERNAME:-}
+      SPRING_MAIL_PASSWORD: ${SPRING_MAIL_PASSWORD:-}
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH: ${SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH:-false}
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE: ${SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE:-false}
+      MAIL_FROM: "${MAIL_FROM:-Duewise <billing@duewise.local>}"
+      BUSINESS_EMAIL: ${BUSINESS_EMAIL:-}
+    ports:
+      - "${APP_PORT:-8080}:8080"
+
+volumes:
+  duewise-release-pgdata:
