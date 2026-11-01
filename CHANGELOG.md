@@ -5,6 +5,15 @@ MAJOR for breaking API changes, MINOR for new features, PATCH for fixes.
 
 ## [Unreleased]
 
+## [1.0.3] - 2026-11-01
+
+### Fixed
+
+- Re-running the release workflow no longer fails when the GitHub Release already exists: its files and
+  notes are replaced instead.
+- The `latest` Docker tag only moves to the newest version, so re-running an older release cannot point
+  `latest` back at it.
+
 ## [1.0.2] - 2026-11-01
 
 ### Changed
@@ -43,7 +52,8 @@ First release: invoicing, payments and automatic overdue reminders as a REST API
 - Docker image and Docker Compose setup; configuration through environment variables or `.env`.
 - 131 automated tests against real PostgreSQL and SMTP servers, a coverage gate and GitHub Actions CI.
 
-[Unreleased]: https://github.com/developeras95/duewise-invoicing-api/compare/v1.0.2...HEAD
+[Unreleased]: https://github.com/developeras95/duewise-invoicing-api/compare/v1.0.3...HEAD
+[1.0.3]: https://github.com/developeras95/duewise-invoicing-api/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/developeras95/duewise-invoicing-api/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/developeras95/duewise-invoicing-api/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/developeras95/duewise-invoicing-api/releases/tag/v1.0.0

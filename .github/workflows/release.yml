@@ -5,6 +5,8 @@
 #   4. creates the GitHub Release with the jar, a compose.release.yaml pinned to this version,
 #      and the changelog section as notes
 # Nothing is published unless every step before it succeeded.
+# Safe to re-run: an existing release gets its files and notes replaced, and :latest only
+# moves when this is the highest version tag, so re-running an old release cannot move it back.
 name: Release
 
 on:
@@ -54,9 +56,16 @@ jobs:
 
       - name: Build and push the Docker image
         run: |
-          docker build --tag "$IMAGE:$VERSION" --tag "$IMAGE:latest" .
+          highest=$(git ls-remote --tags --refs origin 'v*' \
+            | sed -n 's#^.*refs/tags/v\([0-9]*\.[0-9]*\.[0-9]*\)$#\1#p' | sort -V | tail -1)
+          docker build --tag "$IMAGE:$VERSION" .
           docker push "$IMAGE:$VERSION"
-          docker push "$IMAGE:latest"
+          if [ "$VERSION" = "$highest" ]; then
+            docker tag "$IMAGE:$VERSION" "$IMAGE:latest"
+            docker push "$IMAGE:latest"
+          else
+            echo "::notice::$VERSION is not the newest version ($highest), so :latest stays where it is"
+          fi
 
       - name: Create the GitHub Release
         env:
@@ -77,5 +86,12 @@ jobs:
             echo
             echo "Licence: proprietary, all rights reserved. See LICENSE."
           } >> release-notes.md
-          gh release create "$GITHUB_REF_NAME" "target/duewise-invoicing-api-$VERSION.jar" dist/compose.release.yaml \
-            --title "Duewise $VERSION" --notes-file release-notes.md --verify-tag
+          assets=("target/duewise-invoicing-api-$VERSION.jar" dist/compose.release.yaml)
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            echo "::notice::Release $GITHUB_REF_NAME already exists; replacing its files and notes"
+            gh release upload "$GITHUB_REF_NAME" "${assets[@]}" --clobber
+            gh release edit "$GITHUB_REF_NAME" --title "Duewise $VERSION" --notes-file release-notes.md
+          else
+            gh release create "$GITHUB_REF_NAME" "${assets[@]}" \
+              --title "Duewise $VERSION" --notes-file release-notes.md --verify-tag
+          fi
