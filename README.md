@@ -34,6 +34,8 @@ place, sends the PDF reminder for you on a schedule you choose, and emails you o
 - **Clients** with billing email, address, tax ID, default currency and payment terms; search and paging.
 - **Invoices** with line items, per-line tax, multiple currencies and correct rounding. Drafts can be edited
   or deleted; sending issues a **gapless invoice number** (`INV-2026-00001`, `INV-2026-00002`, ...).
+- **Emailing invoices**: an issued invoice can be emailed to the client's billing address with its PDF
+  attached, as often as needed (paid ones too, as a copy for their records).
 - **Payments** in full or in part, by UPI, bank transfer, card, cheque or cash (a transaction reference is
   required for all but cash). The invoice moves from
   `SENT` to `PARTIALLY_PAID` to `PAID` on its own; overpayments are refused.
@@ -158,7 +160,7 @@ All endpoints are under `/api/v1`. Full request and response schemas, with examp
 | Clients | `GET /clients` (search, paging) · `GET /clients/{id}` · `POST /clients` · `PUT /clients/{id}` |
 | Statements | `GET /clients/{id}/statement` |
 | Invoices | `GET /invoices` (filter by status, client, overdue, dates) · `GET /invoices/{id}` · `POST /invoices` · `PUT /invoices/{id}` (drafts) · `DELETE /invoices/{id}` (drafts) |
-| Invoice actions | `POST /invoices/{id}/send` · `POST /invoices/{id}/void` · `GET /invoices/{id}/pdf` |
+| Invoice actions | `POST /invoices/{id}/send` · `POST /invoices/{id}/email` · `POST /invoices/{id}/void` · `GET /invoices/{id}/pdf` |
 | Payments | `POST /invoices/{id}/payments` · `GET /invoices/{id}/payments` |
 | Reminders | `POST /reminders/run` · `GET /reminders/log` · `GET /settings/reminders` · `PUT /settings/reminders` |
 | Reference data | `GET`, `POST`, `PATCH` on `/currencies` and `/payment-methods` |
@@ -199,7 +201,8 @@ Totals are calculated by the server:
 }
 ```
 
-**3. Send it.** The invoice gets its number and can no longer be edited.
+**3. Send it.** The invoice gets its number and can no longer be edited. Sending does not email it; that is
+a separate step, so an invoice can also be emailed again later:
 
 ```bash
 curl -X POST http://localhost:8080/api/v1/invoices/1/send
@@ -207,6 +210,14 @@ curl -X POST http://localhost:8080/api/v1/invoices/1/send
 
 ```json
 { "id": 1, "invoiceNumber": "INV-2026-00001", "status": "SENT", "version": 1 }
+```
+
+```bash
+curl -X POST http://localhost:8080/api/v1/invoices/1/email
+```
+
+```json
+{ "invoiceId": 1, "invoiceNumber": "INV-2026-00001", "sentTo": "accounts@acmedesign.in", "sentAt": "2026-11-13T09:30:00Z" }
 ```
 
 **4. Record a part payment**
@@ -270,6 +281,7 @@ for programs to check and, for invalid input, one entry per field:
 | `404` | The resource in the URL does not exist |
 | `409` | Conflict: a duplicate email or code, a record changed since you read it, or an action the invoice's status does not allow (editing a sent invoice, paying a draft, voiding a paid one) |
 | `422` | Valid input that breaks a business rule: overpaying, sending an invoice with no lines or a zero total, referring to a client or payment method that does not exist |
+| `502` | The mail server refused an email (`EMAIL_FAILED`); nothing was sent, and the request can be retried |
 
 ## Design decisions
 

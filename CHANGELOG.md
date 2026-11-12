@@ -5,6 +5,15 @@ MAJOR for breaking API changes, MINOR for new features, PATCH for fixes.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-13
+
+### Added
+
+- `POST /api/v1/invoices/{id}/email` emails an issued invoice to the client's billing address (or main email),
+  with its PDF attached. Works for sent, partly paid and paid invoices and can be repeated; drafts and void
+  invoices are refused (`INVOICE_NOT_SENT`, `INVOICE_VOID`). Sending an invoice still only numbers and locks it.
+- `502 Bad Gateway` with code `EMAIL_FAILED` when the mail server refuses an email, instead of a generic error.
+
 ## [1.0.3] - 2026-11-01
 
 ### Fixed

@@ -4,12 +4,14 @@ import java.net.URI;
 import java.time.LocalDate;
 
 import com.duewise.dto.common.PageResponse;
+import com.duewise.dto.invoice.InvoiceEmailResponse;
 import com.duewise.dto.invoice.InvoiceFilter;
 import com.duewise.dto.invoice.InvoiceRequest;
 import com.duewise.dto.invoice.InvoiceResponse;
 import com.duewise.dto.invoice.InvoiceSummaryResponse;
 import com.duewise.dto.invoice.VoidInvoiceRequest;
 import com.duewise.entity.invoice.InvoiceStatus;
+import com.duewise.service.invoice.InvoiceEmailService;
 import com.duewise.service.invoice.InvoiceService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -35,13 +37,15 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 @RestController
 @RequestMapping("/api/v1/invoices")
-@Tag(name = "Invoices", description = "Draft, send and void invoices")
+@Tag(name = "Invoices", description = "Draft, send, email and void invoices")
 public class InvoiceController {
 
     private final InvoiceService service;
+    private final InvoiceEmailService emailService;
 
-    public InvoiceController(InvoiceService service) {
+    public InvoiceController(InvoiceService service, InvoiceEmailService emailService) {
         this.service = service;
+        this.emailService = emailService;
     }
 
     @GetMapping
@@ -107,6 +111,15 @@ public class InvoiceController {
             description = "Assigns the next invoice number for the issue year (no gaps) and locks the invoice against edits.")
     public InvoiceResponse send(@PathVariable Long id) {
         return service.send(id);
+    }
+
+    @PostMapping("/{id}/email")
+    @Operation(summary = "Email an invoice to the client",
+            description = "Sends the invoice PDF to the client's billing email (or main email if there is none). "
+                    + "Only for sent, partly paid or paid invoices; can be repeated. "
+                    + "502 with code EMAIL_FAILED when the mail server refuses it.")
+    public InvoiceEmailResponse email(@PathVariable Long id) {
+        return emailService.email(id);
     }
 
     @PostMapping("/{id}/void")

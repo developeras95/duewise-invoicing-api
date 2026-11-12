@@ -195,7 +195,100 @@ class PdfAndReminderIntegrationTest extends AbstractIntegrationTest {
                 .containsExactly("Reminder: invoice " + number + " is 10 days overdue");
     }
 
+    @Test
+    void anIssuedInvoiceIsEmailedWithItsPdfToTheBillingAddress() throws Exception {
+        LocalDate today = LocalDate.now(clock);
+        String billingEmail = "accounts+" + UUID.randomUUID() + "@example.com";
+        long clientId = createClient("Krishna Interiors", billingEmail);
+        long invoiceId = createInvoice(clientId, today, today.plusDays(30), "1", "1000", "0");
+        String number = send(invoiceId);
+
+        mvc.perform(post("/api/v1/invoices/{id}/email", invoiceId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.invoiceNumber").value(number))
+                .andExpect(jsonPath("$.sentTo").value(billingEmail))
+                .andExpect(jsonPath("$.sentAt").isNotEmpty());
+
+        List<MimeMessage> emails = messagesTo(billingEmail);
+        assertThat(emails).extracting(MimeMessage::getSubject)
+                .containsExactly("Invoice " + number + " from Duewise Demo Studio");
+        assertThat(hasPdfAttachment(emails.getFirst())).isTrue();
+        assertThat(htmlOf(emails.getFirst())).contains("Hello Krishna Interiors").contains("due on");
+
+        // Once paid in full, it can still be emailed: as a copy for the client's records.
+        mvc.perform(post("/api/v1/invoices/{id}/payments", invoiceId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"amount": 1000, "paymentMethod": "CASH"}
+                                """))
+                .andExpect(status().is2xxSuccessful());
+        greenMail.reset();
+        mvc.perform(post("/api/v1/invoices/{id}/email", invoiceId)).andExpect(status().isOk());
+        assertThat(htmlOf(messagesTo(billingEmail).getFirst())).contains("paid in full");
+    }
+
+    @Test
+    void draftsAndVoidInvoicesAreNotEmailed() throws Exception {
+        LocalDate today = LocalDate.now(clock);
+        String billingEmail = "accounts+" + UUID.randomUUID() + "@example.com";
+        long clientId = createClient("Sabarmati Crafts", billingEmail);
+
+        long draft = createInvoice(clientId, today, today.plusDays(30), "1", "500", "0");
+        mvc.perform(post("/api/v1/invoices/{id}/email", draft))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("INVOICE_NOT_SENT"));
+
+        long voided = createInvoice(clientId, today, today.plusDays(30), "1", "500", "0");
+        send(voided);
+        mvc.perform(post("/api/v1/invoices/{id}/void", voided)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"reason": "Raised in error"}
+                                """))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/v1/invoices/{id}/email", voided))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("INVOICE_VOID"));
+
+        assertThat(messagesTo(billingEmail)).isEmpty();
+    }
+
+    @Test
+    void aRefusedEmailIsReportedAndNothingIsSent() throws Exception {
+        LocalDate today = LocalDate.now(clock);
+        String billingEmail = "accounts+" + UUID.randomUUID() + "@example.com";
+        long clientId = createClient("Kosi Traders", billingEmail);
+        long invoiceId = createInvoice(clientId, today, today.plusDays(30), "1", "250", "0");
+        send(invoiceId);
+
+        greenMail.stop();
+        try {
+            mvc.perform(post("/api/v1/invoices/{id}/email", invoiceId))
+                    .andExpect(status().isBadGateway())
+                    .andExpect(jsonPath("$.code").value("EMAIL_FAILED"));
+        } finally {
+            greenMail.start();
+        }
+        assertThat(messagesTo(billingEmail)).isEmpty();
+    }
+
     // ----- helpers ---------------------------------------------------------------------------
+
+    /** The HTML part of an email, decoded (GreenMailUtil.getBody would return it still encoded). */
+    private static String htmlOf(Part part) throws Exception {
+        if (part.isMimeType("text/html")) {
+            return (String) part.getContent();
+        }
+        if (part.getContent() instanceof Multipart multipart) {
+            for (int i = 0; i < multipart.getCount(); i++) {
+                String html = htmlOf(multipart.getBodyPart(i));
+                if (html != null) {
+                    return html;
+                }
+            }
+        }
+        return null;
+    }
 
     private String pdfText(long invoiceId) throws Exception {
         byte[] pdf = mvc.perform(get("/api/v1/invoices/{id}/pdf", invoiceId))

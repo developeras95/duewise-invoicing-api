@@ -9,6 +9,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.duewise.exception.ConflictException;
+import com.duewise.exception.ExternalServiceException;
+import com.duewise.service.invoice.InvoiceEmailService;
 import com.duewise.service.invoice.InvoiceService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,6 +27,20 @@ class InvoiceControllerTest {
 
     @MockitoBean
     InvoiceService service;
+
+    @MockitoBean
+    InvoiceEmailService emailService;
+
+    @Test
+    void aMailServerFailureIsReportedAsBadGateway() throws Exception {
+        when(emailService.email(7L)).thenThrow(new ExternalServiceException("EMAIL_FAILED",
+                "The mail server did not accept the email, so nothing was sent. Try again later."));
+
+        mvc.perform(post("/api/v1/invoices/7/email"))
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath("$.code").value("EMAIL_FAILED"))
+                .andExpect(jsonPath("$.detail").value("The mail server did not accept the email, so nothing was sent. Try again later."));
+    }
 
     @Test
     void invalidLineItemsAreReportedByPosition() throws Exception {
