@@ -63,3 +63,11 @@ duewise:
     cron: ${REMINDERS_CRON:0 0 9 * * *}
     # Used only to fill the owner-summary recipient list on first start; afterwards use the API.
     owner-emails: ${REMINDER_OWNER_EMAILS:owner@duewise.local}
+  invoices:
+    # Above this many invoices, the unfiltered invoice list shows PostgreSQL's estimate of the total
+    # instead of counting every row (totalExact=false). Filtered lists are always counted.
+    estimate-total-above: ${INVOICES_ESTIMATE_TOTAL_ABOVE:100000}
+  reports:
+    # Recomputes the stored revenue report every night; the current month is always added up live.
+    refresh-enabled: ${REPORTS_REFRESH_ENABLED:true}
+    refresh-cron: ${REPORTS_REFRESH_CRON:0 0 2 * * *}

@@ -45,6 +45,11 @@ place, sends the PDF reminder for you on a schedule you choose, and emails you o
   Each reminder is sent once; a failed send is retried on the next run.
 - **Client statements**: what a client owes per currency, split into current, 1–30, 31–60, 61–90 and
   90+ days overdue.
+- **Revenue report**: money received per month and currency, with totals. The current month is always
+  up to date; earlier months come from a stored copy refreshed every night (or on request).
+- **Fast at millions of rows**: the indexes come from a
+  [performance study at 5 million invoices](https://github.com/developeras95/duewise-postgres-performance),
+  each one measured before and after. The busiest screens went from up to a second to under a millisecond.
 - **Reference data** as tables, not hard-coded lists: 8 currencies and 5 payment methods to start with,
   each can be added or deactivated through the API.
 - **Safe concurrent edits**: two people editing the same invoice cannot overwrite each other silently.
@@ -140,6 +145,9 @@ Every setting has a working default for local use. Override any of them with env
 | `REMINDERS_CRON` | `0 0 9 * * *` (09:00 daily) | When reminders run, in the business time zone |
 | `REMINDERS_SCHEDULER_ENABLED` | `true` | `false` turns the daily run off; the manual endpoint still works |
 | `REMINDER_OWNER_EMAILS` | `owner@duewise.local` | First recipients of the daily summary; afterwards managed through the API |
+| `REPORTS_REFRESH_CRON` | `0 0 2 * * *` (02:00 daily) | When the stored revenue report is refreshed, in the business time zone |
+| `REPORTS_REFRESH_ENABLED` | `true` | `false` turns the nightly refresh off; the manual endpoint still works |
+| `INVOICES_ESTIMATE_TOTAL_ABOVE` | `100000` | Above this many invoices, the unfiltered invoice list estimates its total instead of counting |
 
 ### Sending real email
 
@@ -163,6 +171,7 @@ All endpoints are under `/api/v1`. Full request and response schemas, with examp
 | Invoice actions | `POST /invoices/{id}/send` · `POST /invoices/{id}/email` · `POST /invoices/{id}/void` · `GET /invoices/{id}/pdf` |
 | Payments | `POST /invoices/{id}/payments` · `GET /invoices/{id}/payments` |
 | Reminders | `POST /reminders/run` · `GET /reminders/log` · `GET /settings/reminders` · `PUT /settings/reminders` |
+| Reports | `GET /reports/revenue?from=2025-11&to=2026-10` · `POST /reports/revenue/refresh` |
 | Reference data | `GET`, `POST`, `PATCH` on `/currencies` and `/payment-methods` |
 
 ## Walkthrough: from client to reminder
@@ -310,13 +319,30 @@ tests use a fixed clock, so they behave the same on any day and on any CI runner
 **The database owns its schema.** Flyway migrations create every table, constraint and index; Hibernate only
 validates that the entities match (`ddl-auto: validate`).
 
+**Indexes are measured, not guessed.** Every index in `V6` was tested on 5 million invoices in the
+[performance study](https://github.com/developeras95/duewise-postgres-performance), with its query plans
+before and after and its cost in disk space and slower writes. Two were measured and left out: a B-tree on
+payment dates (215 MB for a gain the stored report makes unnecessary) and an index on client names, which
+made some searches slower than none.
+
+**Counting is not free.** A paged list normally counts every matching row to report the total. For the
+unfiltered invoice list that meant reading all 5 million invoices on every page (200 ms, growing with the
+table). Above 100,000 invoices that list now takes PostgreSQL's own row estimate, off by a fraction of a
+percent, and says so with `totalExact: false`. Filtered lists are counted exactly.
+
+**A stored report with a live edge.** Adding up a year of payments, each joined to its invoice for the
+currency, takes most of a second at millions of payments. The revenue report therefore reads finished months
+from a materialized view, refreshed nightly with `REFRESH ... CONCURRENTLY` so it stays readable, and adds up
+only the current month live. A payment recorded today shows at once; one backdated into a finished month
+shows after the next refresh, and the report gives the time of the last one.
+
 ## Testing and quality
 
 ```bash
 ./mvnw verify
 ```
 
-- **131 tests**: fast unit tests for business rules and controllers, and integration tests that run against a
+- **139 tests**: fast unit tests for business rules and controllers, and integration tests that run against a
   real PostgreSQL 17 (started by [Testcontainers](https://testcontainers.com/)) and a real SMTP server
   ([GreenMail](https://greenmail-mail-test.github.io/greenmail/)) to check each email and its PDF attachment.
 - **Coverage gate**: [JaCoCo](https://www.jacoco.org/) fails the build below 90% line or 70% branch coverage.
@@ -334,19 +360,19 @@ Code is organised by layer first, then by feature inside each layer:
 src/main/java/com/duewise/
 ├── controller/      REST endpoints, one package per feature; error/ holds the global exception handler
 ├── service/         business logic and transactions; also the reminder job, mailer and invoice numbering
-├── repository/      Spring Data repositories, query specifications and the JDBC statement query
+├── repository/      Spring Data repositories, query specifications, and plain SQL for statements and reports
 ├── entity/          JPA entities and their enums (Client, Invoice, Payment, ReminderLog, ...)
 ├── dto/             request and response records, mapped from entities by their from(...) methods
 ├── exception/       the application's exceptions, each mapped to an HTTP status
 ├── util/            money formatting and invoice arithmetic
 └── config/          application settings, clock, caching, scheduling, OpenAPI
 src/main/resources/
-├── db/migration/    Flyway SQL migrations (V1–V5)
+├── db/migration/    Flyway SQL migrations (V1–V6)
 └── templates/       PDF and email templates
 ```
 
 Each layer has the same feature packages: `client`, `currency`, `invoice`, `payment`, `paymentmethod`, `pdf`,
-`reminder` and `statement`. Tests mirror the package of the class they test; the API-level integration tests
+`reminder`, `report` and `statement`. Tests mirror the package of the class they test; the API-level integration tests
 are in the root package.
 
 ## Tech stack

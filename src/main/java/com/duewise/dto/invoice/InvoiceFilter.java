@@ -11,4 +11,9 @@ public record InvoiceFilter(
         boolean overdueOnly,
         LocalDate issuedFrom,
         LocalDate issuedTo) {
+
+    /** True when nothing is filtered: the list is every invoice. */
+    public boolean isEmpty() {
+        return status == null && clientId == null && !overdueOnly && issuedFrom == null && issuedTo == null;
+    }
 }

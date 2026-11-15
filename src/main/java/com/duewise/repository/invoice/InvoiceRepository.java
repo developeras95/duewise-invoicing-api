@@ -9,6 +9,7 @@ import com.duewise.entity.invoice.Invoice;
 import com.duewise.entity.invoice.InvoiceStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -22,6 +23,21 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long>, JpaSpec
     @Override
     @EntityGraph(attributePaths = {"client", "currency"})
     Page<Invoice> findAll(Specification<Invoice> spec, Pageable pageable);
+
+    /**
+     * One page of every invoice, without the count query that {@link #findAll(Specification, Pageable)} adds:
+     * for the unfiltered list when the total is estimated instead.
+     */
+    @EntityGraph(attributePaths = {"client", "currency"})
+    Slice<Invoice> findAllBy(Pageable pageable);
+
+    /**
+     * PostgreSQL's estimate of the number of invoices, kept by autovacuum and ANALYZE: no rows are read.
+     * Negative or zero when the table has never been analysed.
+     */
+    @Query(value = "SELECT CAST(reltuples AS bigint) FROM pg_class WHERE oid = CAST('invoice' AS regclass)",
+            nativeQuery = true)
+    long estimatedCount();
 
     /** Single invoice with its client, currency and lines, for the detail view. */
     @EntityGraph(attributePaths = {"client", "currency", "lines"})

@@ -5,6 +5,30 @@ MAJOR for breaking API changes, MINOR for new features, PATCH for fixes.
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-11-16
+
+### Added
+
+- `GET /api/v1/reports/revenue?from=&to=`: money received per month and currency, with totals per currency.
+  Finished months come from a stored copy (the `monthly_revenue` materialized view), refreshed every night at
+  02:00 (`REPORTS_REFRESH_CRON`, `REPORTS_REFRESH_ENABLED`); the current month is added up live. The response
+  gives `storedAsOf` and `liveMonth`. Up to 120 months; defaults to the last twelve.
+- `POST /api/v1/reports/revenue/refresh` refreshes the stored report on request.
+- `totalExact` on every paged response. It is `false` only for the unfiltered invoice list above 100,000
+  invoices (`INVOICES_ESTIMATE_TOTAL_ABOVE`), which now takes PostgreSQL's row estimate instead of counting
+  every invoice (200 ms at 5 million).
+
+### Changed
+
+- Migration `V6` adds the indexes measured in the
+  [performance study](https://github.com/developeras95/duewise-postgres-performance) at 5 million invoices:
+  the overdue list (339 ms to 0.56 ms), client statements (95 ms to 7.1 ms for the largest client), client
+  search with `pg_trgm` (18–20 ms to under 2 ms), the invoice list as it opens (959 ms to 0.42 ms), and a BRIN
+  index on payment dates for the revenue report. It also enables the `pg_trgm` extension, which needs a
+  database user allowed to create extensions (the `postgres` Docker image's user is).
+- The reminder job and the report refresh have separate switches; `REMINDERS_SCHEDULER_ENABLED=false` no
+  longer stops other scheduled jobs.
+
 ## [1.1.0] - 2026-11-13
 
 ### Added

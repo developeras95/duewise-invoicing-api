@@ -25,4 +25,18 @@ class DuewiseApplicationTests extends AbstractIntegrationTest {
         assertThat(reminderOffsets).isEqualTo(3);
         assertThat(yenDecimals).isZero();
     }
+
+    @Test
+    void v6AddsTheMeasuredIndexesAndTheRevenueReport() {
+        Integer indexes = jdbc.queryForObject("""
+                SELECT count(*) FROM pg_indexes WHERE indexname IN (
+                    'ix_invoice_open_by_issue_date', 'ix_invoice_client_statement', 'ix_invoice_by_issue_date',
+                    'ix_client_name_trgm', 'ix_client_email_trgm', 'ix_payment_paid_on_brin', 'ux_monthly_revenue')
+                """, Integer.class);
+        Integer reportRefreshes = jdbc.queryForObject(
+                "SELECT count(*) FROM report_refresh WHERE report = 'monthly_revenue'", Integer.class);
+
+        assertThat(indexes).isEqualTo(7);
+        assertThat(reportRefreshes).isEqualTo(1);
+    }
 }

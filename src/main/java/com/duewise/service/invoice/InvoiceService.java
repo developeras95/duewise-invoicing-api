@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
+import com.duewise.config.InvoiceListProperties;
 import com.duewise.dto.common.PageResponse;
 import com.duewise.dto.invoice.InvoiceFilter;
 import com.duewise.dto.invoice.InvoiceRequest;
@@ -32,6 +33,7 @@ import com.duewise.service.currency.CurrencyService;
 import com.duewise.util.invoice.InvoiceMath;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,14 +45,16 @@ public class InvoiceService {
     private final ClientService clientService;
     private final CurrencyService currencyService;
     private final InvoiceNumberGenerator numberGenerator;
+    private final InvoiceListProperties listProperties;
     private final Clock clock;
 
     public InvoiceService(InvoiceRepository repository, ClientService clientService, CurrencyService currencyService,
-                          InvoiceNumberGenerator numberGenerator, Clock clock) {
+                          InvoiceNumberGenerator numberGenerator, InvoiceListProperties listProperties, Clock clock) {
         this.repository = repository;
         this.clientService = clientService;
         this.currencyService = currencyService;
         this.numberGenerator = numberGenerator;
+        this.listProperties = listProperties;
         this.clock = clock;
     }
 
@@ -61,6 +65,13 @@ public class InvoiceService {
             throw new BadRequestException("INVALID_DATE_RANGE", "issuedFrom must be on or before issuedTo.");
         }
         LocalDate today = today();
+        if (filter.isEmpty()) {
+            long estimate = repository.estimatedCount();
+            if (estimate > listProperties.estimateTotalAbove()) {
+                Slice<Invoice> slice = repository.findAllBy(pageable);
+                return PageResponse.estimated(slice, estimate, invoice -> InvoiceSummaryResponse.from(invoice, today));
+            }
+        }
         Page<Invoice> page = repository.findAll(InvoiceSpecifications.matching(filter, today), pageable);
         return PageResponse.from(page, invoice -> InvoiceSummaryResponse.from(invoice, today));
     }

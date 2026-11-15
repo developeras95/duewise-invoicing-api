@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -16,9 +17,12 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 
+import com.duewise.config.InvoiceListProperties;
+import com.duewise.dto.common.PageResponse;
 import com.duewise.dto.invoice.InvoiceFilter;
 import com.duewise.dto.invoice.InvoiceRequest;
 import com.duewise.dto.invoice.InvoiceResponse;
+import com.duewise.dto.invoice.InvoiceSummaryResponse;
 import com.duewise.dto.invoice.LineDraft;
 import com.duewise.dto.invoice.LineItemRequest;
 import com.duewise.entity.client.Client;
@@ -35,6 +39,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.SliceImpl;
+import org.springframework.data.jpa.domain.Specification;
 
 @ExtendWith(MockitoExtension.class)
 class InvoiceServiceTest {
@@ -45,6 +54,8 @@ class InvoiceServiceTest {
     private static final LocalDate TODAY = LocalDate.of(2026, 10, 20);
 
     private static final Currency INR = new Currency("INR", "Indian Rupee", "₹", (short) 2);
+    private static final InvoiceFilter EVERYTHING = new InvoiceFilter(null, null, false, null, null);
+
     private static final Currency JPY = new Currency("JPY", "Japanese Yen", "¥", (short) 0);
 
     @Mock InvoiceRepository repository;
@@ -57,7 +68,8 @@ class InvoiceServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new InvoiceService(repository, clientService, currencyService, numberGenerator, CLOCK);
+        service = new InvoiceService(repository, clientService, currencyService, numberGenerator,
+                new InvoiceListProperties(100_000), CLOCK);
     }
 
     @Test
@@ -156,6 +168,44 @@ class InvoiceServiceTest {
 
         assertThatThrownBy(() -> service.list(filter, org.springframework.data.domain.Pageable.unpaged()))
                 .isInstanceOf(BadRequestException.class);
+    }
+
+    @Test
+    void aLargeUnfilteredListTakesTheEstimatedTotalAndSkipsTheCount() {
+        when(repository.estimatedCount()).thenReturn(5_000_000L);
+        when(repository.findAllBy(PageRequest.of(2, 20))).thenReturn(new SliceImpl<>(List.of(), PageRequest.of(2, 20), true));
+
+        PageResponse<InvoiceSummaryResponse> page = service.list(EVERYTHING, PageRequest.of(2, 20));
+
+        assertThat(page.totalExact()).isFalse();
+        assertThat(page.totalElements()).isEqualTo(5_000_000L);
+        assertThat(page.totalPages()).isEqualTo(250_000);
+        verify(repository, never()).findAll(any(Specification.class), any(Pageable.class));
+    }
+
+    @Test
+    void anEstimateNeverClaimsFewerRowsThanThePageShows() {
+        when(repository.estimatedCount()).thenReturn(150_000L);
+        when(repository.findAllBy(PageRequest.of(9_999, 20)))
+                .thenReturn(new SliceImpl<>(List.of(), PageRequest.of(9_999, 20), true));
+
+        PageResponse<InvoiceSummaryResponse> page = service.list(EVERYTHING, PageRequest.of(9_999, 20));
+
+        assertThat(page.totalElements()).isEqualTo(9_999L * 20 + 1);
+        assertThat(page.totalExact()).isFalse();
+    }
+
+    @Test
+    void smallTablesAndFilteredListsAreCountedExactly() {
+        when(repository.estimatedCount()).thenReturn(2_000L);
+        when(repository.findAll(any(Specification.class), any(Pageable.class))).thenReturn(Page.empty());
+
+        assertThat(service.list(EVERYTHING, PageRequest.of(0, 20)).totalExact()).isTrue();
+
+        InvoiceFilter drafts = new InvoiceFilter(InvoiceStatus.DRAFT, null, false, null, null);
+        assertThat(service.list(drafts, PageRequest.of(0, 20)).totalExact()).isTrue();
+        verify(repository, never()).findAllBy(any());
+        verify(repository, times(1)).estimatedCount();
     }
 
     private static InvoiceRequest request(String currency, LocalDate issue, LocalDate due, LineItemRequest... lines) {

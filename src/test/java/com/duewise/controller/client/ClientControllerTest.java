@@ -63,7 +63,7 @@ class ClientControllerTest {
 
     @Test
     void listPassesPagingAndSortingToTheService() throws Exception {
-        when(service.search(any(), any())).thenReturn(new PageResponse<>(List.of(), 1, 10, 0, 0));
+        when(service.search(any(), any())).thenReturn(new PageResponse<>(List.of(), 1, 10, 0, 0, true));
 
         mvc.perform(get("/api/v1/clients")
                         .param("q", "acme")
